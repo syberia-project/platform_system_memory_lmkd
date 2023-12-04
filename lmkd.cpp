@@ -2611,10 +2611,6 @@ out:
     return min_score_adj;
 }
 
-static struct proc *proc_adj_lru(int oomadj) {
-  return (struct proc *)adjslot_tail(&procadjslot_list[ADJTOSLOT(oomadj)]);
-}
-
 // Note: returned entry is only an anchor and does not hold a valid process info.
 // When called from a non-main thread, adjslot_list_lock read lock should be taken.
 static struct proc *proc_adj_head(int oomadj) {
@@ -3236,8 +3232,7 @@ static bool should_consider_cache_free(uint32_t events, enum vmpressure_level le
 /*
  * Returns lowest breached watermark or WMARK_NONE.
  */
-static enum zone_watermark get_lowest_watermark(union meminfo *mi,
-                                                struct zone_meminfo *zmi, enum vmpressure_level level,
+static enum zone_watermark get_lowest_watermark(struct zone_meminfo *zmi, enum vmpressure_level level,
                                                 uint32_t events, bool in_compaction)
 {
     struct zone_watermarks *watermarks = &zmi->watermarks;
@@ -3727,7 +3722,7 @@ static void mp_event_psi(int data, uint32_t events, struct polling_params *poll_
     calc_zone_watermarks(&zi, &zone_mem_info, pgskip_deltas);
 
     /* Find out which watermark is breached if any */
-    wmark = get_lowest_watermark(&mi, &zone_mem_info, level, events, in_compaction);
+    wmark = get_lowest_watermark(&zone_mem_info, level, events, in_compaction);
     log_meminfo(&mi);
     if (level < VMPRESS_LEVEL_CRITICAL && (reclaim == DIRECT_RECLAIM ||
             reclaim == DIRECT_RECLAIM_THROTTLE)) {
@@ -5044,7 +5039,6 @@ static void close_handle_for_perf_iop() {
 }
 
 static void init_PreferredApps() {
-    void *handle = NULL;
     if (!use_perf_api_for_pref_apps) {
         if (handle_iopd != NULL) {
             perf_ux_engine_trigger = (void (*)(int, char *))dlsym(handle_iopd, "perf_ux_engine_trigger");
